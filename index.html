@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hanoi's Tower</title>
+  <style>
+    :root {
+      --bg-color-light: #ffffff;
+      --tower-bg-light: #dddddd;
+      --text-color-light: #000000;
+      --input-bg-light: #f0f0f0;
+
+      --bg-color-dark: #1e1e2f;
+      --tower-bg-dark: #2e2e3f;
+      --text-color-dark: #f0f0f0;
+      --input-bg-dark: #2c2c3c;
+
+      --disk-border-dark: 2px solid #00ffff;
+      --disk-border-light: 2px solid #ff4500;
+
+      --button-bg: #333;
+      --button-text: #fff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body.light {
+      background-color: var(--bg-color-light);
+      color: var(--text-color-light);
+    }
+
+    body.dark {
+      background-color: var(--bg-color-dark);
+      color: var(--text-color-dark);
+    }
+
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      min-height: 100vh;
+      transition: background-color 0.3s, color 0.3s;
+      overflow-y: auto;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    input, select, button {
+      padding: 8px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+    }
+
+    body.light input, body.light select {
+      background-color: var(--input-bg-light);
+      color: var(--text-color-light);
+    }
+
+    body.dark input, body.dark select {
+      background-color: var(--input-bg-dark);
+      color: var(--text-color-dark);
+    }
+
+    button {
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      cursor: pointer;
+    }
+
+    .towers {
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-end;
+      flex-wrap: nowrap;
+      width: 100%;
+      max-width: 800px;
+      height: 400px;
+      overflow-y: auto;
+      padding: 10px;
+      gap: 10px;
+      border: 1px solid #444;
+    }
+
+    .tower {
+      flex: 1;
+      min-width: 80px;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      position: relative;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .pole-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background-color: #888;
+      z-index: 0;
+    }
+
+    .disk {
+      height: 18px;
+      margin: 2px 2px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      text-align: center;
+      font-size: 12px;
+      line-height: 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    body.light .disk {
+      background-color: black;
+      color: white;
+    }
+
+    body.dark .disk {
+      background-color: white;
+      color: black;
+    }
+
+    body.light .selected-disk {
+      outline: 2px solid #ff4500;
+      outline-offset: 1px;
+      z-index: 2;
+    }
+
+    body.dark .selected-disk {
+      outline: 2px solid #00ffff;
+      outline-offset: 1px;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body class="dark">
+  <h1>Hanoi's Tower</h1>
+  <div class="controls">
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button><br>
+    <label>Disks:</label>
+    <input type="number" id="diskCount" value="3" min="1" max="64">
+    <label>Poles:</label>
+    <input type="number" id="poleCount" value="3" min="3" max="6">
+    <button onclick="startGame()">Start Game</button>
+    <button onclick="undoMove()">Undo</button>
+    <button onclick="toggleTheme()">Toggle Theme</button>
+  </div>
+  <div class="towers" id="towers"></div>
+
+  <script>
+    let state = {
+      towers: [],
+      disks: 3,
+      poles: 3,
+      selected: null,
+      history: [],
+      username: '',
+      password: '',
+      saved: {}
+    };
+
+    function login() {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      if (!u || !p) return alert("Enter username & password");
+      state.username = u;
+      state.password = p;
+      const savedData = localStorage.getItem(u);
+      if (savedData) {
+        state.saved = JSON.parse(savedData);
+        state.disks = state.saved.disks;
+        state.poles = state.saved.poles;
+        document.getElementById('diskCount').value = state.disks;
+        document.getElementById('poleCount').value = state.poles;
+        alert("Welcome back, " + u);
+      } else {
+        state.saved = { disks: 3, poles: 3 };
+        alert("New user created");
+      }
+    }
+
+    function saveProgress() {
+      state.saved.disks = state.disks;
+      state.saved.poles = state.poles;
+      localStorage.setItem(state.username, JSON.stringify(state.saved));
+    }
+
+    function startGame() {
+      state.disks = Math.min(64, parseInt(document.getElementById('diskCount').value));
+      state.poles = Math.max(3, parseInt(document.getElementById('poleCount').value));
+      state.history = [];
+      state.towers = Array(state.poles).fill(0).map(() => []);
+      for (let i = state.disks; i >= 1; i--) {
+        state.towers[0].push(i);
+      }
+      render();
+    }
+
+    function undoMove() {
+      const last = state.history.pop();
+      if (last) {
+        state.towers[last.from].push(last.disk);
+        state.towers[last.to].pop();
+        render();
+      }
+    }
+
+    function moveDisk(from, to) {
+      const fromTower = state.towers[from];
+      const toTower = state.towers[to];
+      if (!fromTower.length) return;
+      const disk = fromTower[fromTower.length - 1];
+      if (!toTower.length || toTower[toTower.length - 1] > disk) {
+        fromTower.pop();
+        toTower.push(disk);
+        state.history.push({ from, to, disk });
+        render();
+        checkWin();
+      }
+    }
+
+    function checkWin() {
+      if (state.towers.some((tower, i) => i !== 0 && tower.length === state.disks)) {
+        alert("Level complete!");
+        if (state.disks < 64) {
+          state.disks++;
+          document.getElementById('diskCount').value = state.disks;
+        }
+        saveProgress();
+        startGame();
+      }
+    }
+
+    function render() {
+      const container = document.getElementById("towers");
+      container.innerHTML = "";
+      state.towers.forEach((tower, idx) => {
+        const towerDiv = document.createElement("div");
+        towerDiv.className = "tower";
+
+        const pole = document.createElement("div");
+        pole.className = "pole-line";
+        towerDiv.appendChild(pole);
+
+        towerDiv.onclick = () => {
+          if (tower.length === 0 && state.selected !== null) {
+            moveDisk(state.selected, idx);
+            state.selected = null;
+          } else if (state.selected === null && tower.length > 0) {
+            state.selected = idx;
+          } else if (state.selected !== null) {
+            moveDisk(state.selected, idx);
+            state.selected = null;
+          }
+          render();
+        };
+
+        tower.forEach((disk, i) => {
+          const diskDiv = document.createElement("div");
+          diskDiv.className = "disk";
+          diskDiv.style.width = 20 + disk * 10 + "px";
+          diskDiv.textContent = disk;
+          if (i === tower.length - 1 && idx === state.selected) {
+            diskDiv.classList.add("selected-disk");
+          }
+          towerDiv.appendChild(diskDiv);
+        });
+
+        container.appendChild(towerDiv);
+      });
+    }
+
+    function toggleTheme() {
+      const body = document.body;
+      body.classList.toggle("light");
+      body.classList.toggle("dark");
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
